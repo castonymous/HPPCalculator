@@ -111,11 +111,14 @@
             const [sellingPrice, setSellingPrice] = useState(0);
             const [qty, setQty] = useState(1);
             const [adminFeePercent, setAdminFeePercent] = useState(6.5);
-            const [shippingCost, setShippingCost] = useState(0); // Ongkir
             
-            // State Biaya Tambahan (Custom List)
+            // Ongkir State: Value & Type (Rp or %)
+            const [shippingCost, setShippingCost] = useState(0); 
+            const [shippingType, setShippingType] = useState('rp'); // 'rp' or 'percent'
+            
+            // State Biaya Tambahan (Custom List with Type)
             const [extraCosts, setExtraCosts] = useState([
-                { name: "Biaya Iklan (Ads)", cost: 0 }
+                { name: "Biaya Iklan (Ads)", cost: 0, type: 'rp' } // type: 'rp' or 'percent'
             ]);
 
             // State AI Recommendation
@@ -158,7 +161,7 @@
                 setExtraCosts(newCosts);
             };
 
-            const addExtraCost = () => setExtraCosts([...extraCosts, { name: "Biaya Lainnya", cost: 0 }]);
+            const addExtraCost = () => setExtraCosts([...extraCosts, { name: "Biaya Lainnya", cost: 0, type: 'rp' }]);
             const removeExtraCost = (index) => setExtraCosts(extraCosts.filter((_, i) => i !== index));
 
             // --- Handlers Wholesale ---
@@ -171,11 +174,26 @@
             // --- CALCULATIONS ---
             const totalHppSatuan = useMemo(() => items.reduce((acc, curr) => acc + curr.cost, 0), [items]);
             const totalHppTotal = totalHppSatuan * qty;
-
-            const totalExtraCostTotal = useMemo(() => extraCosts.reduce((acc, curr) => acc + curr.cost, 0), [extraCosts]);
-            const totalShipping = parseFloat(shippingCost) || 0;
-            
             const totalOmset = sellingPrice * qty;
+
+            // Calculate Extra Costs (Handle % logic)
+            const totalExtraCostTotal = useMemo(() => extraCosts.reduce((acc, curr) => {
+                let val = curr.cost;
+                if (curr.type === 'percent') {
+                    val = (totalOmset * curr.cost) / 100;
+                }
+                return acc + val;
+            }, 0), [extraCosts, totalOmset]);
+
+            // Calculate Shipping (Handle % logic)
+            const totalShipping = useMemo(() => {
+                let val = parseFloat(shippingCost) || 0;
+                if (shippingType === 'percent') {
+                    val = (totalOmset * val) / 100;
+                }
+                return val;
+            }, [shippingCost, shippingType, totalOmset]);
+            
             const adminFeeNominal = (totalOmset * adminFeePercent) / 100;
             
             // Total Biaya Keluar = HPP + Admin + Ekstra + Ongkir
@@ -188,15 +206,29 @@
             // --- AI RECOMMENDATION LOGIC ---
             const recommendedPrice = useMemo(() => {
                 // Harga Jual harus menutupi HPP + Ekstra + Ongkir + Admin% + Target Margin%
-                const totalFixedCosts = totalHppTotal + totalExtraCostTotal + totalShipping;
-                const adminDec = adminFeePercent / 100;
+                // Warning: Recommendation doesn't perfectly account for Extra Costs if they are % based, it approximates.
+                // Assuming Extra Costs are fixed for simplicity in recommendation formula or taking base HPP.
+                // For a more accurate reverse calc with % costs, we need to sum up all % components.
+                
+                // Sum all percentage based costs
+                const totalPercentCosts = adminFeePercent + 
+                    extraCosts.filter(c => c.type === 'percent').reduce((acc, c) => acc + c.cost, 0) +
+                    (shippingType === 'percent' ? parseFloat(shippingCost) || 0 : 0);
+
+                // Sum all fixed costs (HPP + Fixed Extras + Fixed Shipping)
+                const totalFixedExtras = extraCosts.filter(c => c.type === 'rp').reduce((acc, c) => acc + c.cost, 0);
+                const fixedShipping = shippingType === 'rp' ? (parseFloat(shippingCost) || 0) : 0;
+                
+                const totalFixedCosts = totalHppTotal + totalFixedExtras + fixedShipping;
+
+                const adminDec = totalPercentCosts / 100;
                 const marginDec = targetMargin / 100;
                 const denominator = 1 - adminDec - marginDec;
                 
                 if (denominator <= 0 || qty <= 0) return 0;
                 const targetOmset = totalFixedCosts / denominator;
                 return targetOmset / qty;
-            }, [totalHppTotal, totalExtraCostTotal, totalShipping, qty, adminFeePercent, targetMargin]);
+            }, [totalHppTotal, extraCosts, shippingCost, shippingType, qty, adminFeePercent, targetMargin]);
 
             const applyRecommendation = () => {
                 setSellingPrice(Math.ceil(recommendedPrice / 100) * 100);
@@ -217,7 +249,7 @@
                             </div>
                             <div className="hidden md:block text-right">
                                 <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-medium backdrop-blur-sm">
-                                    v2.3 + Ongkir
+                                    v2.4 + % Options
                                 </span>
                             </div>
                         </div>
@@ -331,24 +363,32 @@
                                             </div>
                                         </div>
                                         
-                                        {/* New: Ongkir Field */}
+                                        {/* New: Ongkir Field with Toggle */}
                                         <div>
                                             <label className="block text-sm font-medium text-gray-600 mb-1">Ongkir / Ekspedisi (Opsional)</label>
-                                            <div className="relative">
-                                                <span className="absolute left-3 top-2 text-gray-400">Rp</span>
-                                                <input 
-                                                    type="number" 
-                                                    value={shippingCost === 0 ? "" : shippingCost}
-                                                    onChange={(e) => setShippingCost(parseFloat(e.target.value) || 0)}
-                                                    className="w-full border border-gray-300 rounded pl-8 pr-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
-                                                    placeholder="0 (Ditanggung Penjual)"
-                                                />
+                                            <div className="flex gap-2">
+                                                <div className="relative flex-1">
+                                                    <span className="absolute left-3 top-2 text-gray-400">{shippingType === 'rp' ? 'Rp' : '%'}</span>
+                                                    <input 
+                                                        type="number" 
+                                                        value={shippingCost === 0 ? "" : shippingCost}
+                                                        onChange={(e) => setShippingCost(parseFloat(e.target.value) || 0)}
+                                                        className="w-full border border-gray-300 rounded pl-8 pr-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                                                        placeholder="0"
+                                                    />
+                                                </div>
+                                                <button 
+                                                    onClick={() => setShippingType(shippingType === 'rp' ? 'percent' : 'rp')}
+                                                    className="px-3 py-2 bg-gray-200 rounded text-xs font-bold text-gray-600 hover:bg-gray-300 transition w-12"
+                                                >
+                                                    {shippingType === 'rp' ? 'Rp' : '%'}
+                                                </button>
                                             </div>
                                             <p className="text-[10px] text-gray-400 mt-1">Isi jika ongkir ditanggung penjual (mengurangi profit).</p>
                                         </div>
                                     </div>
 
-                                    {/* Kolom Kanan Simulasi: Biaya Custom */}
+                                    {/* Kolom Kanan Simulasi: Biaya Custom with Toggle */}
                                     <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                                         <div className="flex justify-between items-center mb-2">
                                             <label className="text-sm font-bold text-gray-700">Biaya Tambahan (Total)</label>
@@ -360,7 +400,7 @@
                                         
                                         <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                                             {extraCosts.map((cost, index) => (
-                                                <div key={index} className="flex gap-2">
+                                                <div key={index} className="flex gap-2 items-center">
                                                     <input 
                                                         type="text" 
                                                         value={cost.name}
@@ -368,7 +408,7 @@
                                                         className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs"
                                                         placeholder="Nama Biaya"
                                                     />
-                                                    <div className="relative w-24">
+                                                    <div className="relative w-20">
                                                         <input 
                                                             type="number" 
                                                             value={cost.cost === 0 ? "" : cost.cost}
@@ -377,6 +417,12 @@
                                                             placeholder="0"
                                                         />
                                                     </div>
+                                                    <button 
+                                                        onClick={() => updateExtraCost(index, 'type', cost.type === 'rp' ? 'percent' : 'rp')}
+                                                        className="w-8 px-1 py-1 bg-gray-200 rounded text-[10px] font-bold text-gray-600 hover:bg-gray-300 transition"
+                                                    >
+                                                        {cost.type === 'rp' ? 'Rp' : '%'}
+                                                    </button>
                                                     <button onClick={() => removeExtraCost(index)} className="text-gray-400 hover:text-red-500">
                                                         <i className="fas fa-times"></i>
                                                     </button>
