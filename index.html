@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kalkulator HPP & Profit OIS Grafika Pro</title>
+    <title>Kalkulator HPP & Profit OIS Grafika Ultimate</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & ReactDOM -->
@@ -13,619 +13,786 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <style>
-        body {
-            background-color: #f0f2f5;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .card-shadow {
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-        }
-        .glass-panel {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-        }
-        /* Hide scrollbar for number input */
-        input[type="number"]::-webkit-inner-spin-button,
-        input[type="number"]::-webkit-outer-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
-        .animate-fade-in {
-            animation: fadeIn 0.5s ease-in-out;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        body { background-color: #f3f4f6; font-family: 'Segoe UI', sans-serif; }
+        .card-shadow { box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); }
+        .glass { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(5px); }
+        input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        .transition-all { transition-property: all; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 300ms; }
+        .slide-down { animation: slideDown 0.3s ease-out; }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+        const { useState, useEffect, useMemo, useRef } = React;
 
-        // --- DATA PRESET (Sesuai File CSV) ---
-        const PRESETS = {
-            LANYARD: {
-                name: "Lanyard / Tali ID Card",
-                components: [
-                    { name: "Tali Tissue/Polyester", cost: 1125 },
-                    { name: "Kertas Sublim (per pcs)", cost: 210 },
-                    { name: "Tinta Sublim (per pcs)", cost: 140 },
-                    { name: "Stopper", cost: 200 },
-                    { name: "Pengait", cost: 700 },
-                    { name: "Paku Keling", cost: 82 },
-                    { name: "Listrik/Operasional", cost: 150 }
-                ]
+        // --- DATABASE PRODUK AWAL (STATIC) ---
+        const INITIAL_DB = {
+            MERCHANDISE: {
+                label: "Merchandise & Souvenir",
+                products: {
+                    LANYARD: {
+                        name: "Lanyard / Tali ID Card",
+                        items: [
+                            { category: 'material', name: "Tali Tissue/Polyester", cost: 1125 },
+                            { category: 'material', name: "Kertas Sublim (per pcs)", cost: 210 },
+                            { name: "Tinta Sublim (per pcs)", category: 'material', cost: 140 },
+                            { name: "Stopper", category: 'material', cost: 200 },
+                            { name: "Pengait", category: 'material', cost: 700 },
+                            { name: "Paku Keling", category: 'material', cost: 82 },
+                            { name: "Lakban Kapton", category: 'overhead', cost: 50 },
+                            { name: "Listrik Mesin", category: 'overhead', cost: 150 }
+                        ]
+                    },
+                    PIN_44: {
+                        name: "Pin 44mm",
+                        items: [
+                            { category: 'material', name: "Bahan Pin 44mm", cost: 460 },
+                            { category: 'material', name: "Kertas Inkjet (per bulat)", cost: 35 },
+                            { category: 'material', name: "Tinta (per bulat)", cost: 10 },
+                            { category: 'material', name: "Laminasi Glossy/Doff", cost: 100 },
+                            { category: 'overhead', name: "Listrik Press", cost: 50 }
+                        ]
+                    },
+                    PIN_58: {
+                        name: "Pin 58mm",
+                        items: [
+                            { category: 'material', name: "Bahan Pin 58mm", cost: 620 },
+                            { category: 'material', name: "Kertas Inkjet", cost: 50 },
+                            { category: 'material', name: "Tinta", cost: 15 },
+                            { category: 'material', name: "Laminasi", cost: 120 },
+                            { category: 'overhead', name: "Listrik Press", cost: 50 }
+                        ]
+                    },
+                    MUG: {
+                        name: "Mug Bunglon/Standard",
+                        items: [
+                            { category: 'material', name: "Mug Coating", cost: 12000 },
+                            { category: 'material', name: "Kertas & Tinta Sublim", cost: 2000 },
+                            { category: 'packaging', name: "Box Mug", cost: 1000 },
+                            { category: 'packaging', name: "Bubble Wrap", cost: 500 },
+                            { category: 'overhead', name: "Listrik Press", cost: 200 }
+                        ]
+                    },
+                    MEDALI: {
+                        name: "Medali Akrilik",
+                        items: [
+                            { category: 'material', name: "Akrilik Potong", cost: 1500 },
+                            { category: 'material', name: "Tali Medali", cost: 1800 },
+                            { category: 'material', name: "Sticker Vinyl + Print", cost: 500 },
+                            { category: 'material', name: "Ring/Pengait", cost: 200 },
+                            { category: 'material', name: "Resin (Opsional)", cost: 0 }
+                        ]
+                    }
+                }
             },
-            PIN: {
-                name: "Pin (Peniti/Ganci)",
-                components: [
-                    { name: "Kaleng/Material Pin", cost: 1200 },
-                    { name: "Kertas Inkjet (per pcs)", cost: 144 },
-                    { name: "Tinta (per pcs)", cost: 50 },
-                    { name: "Laminasi (per pcs)", cost: 100 },
-                    { name: "Listrik/Mesin Press", cost: 50 }
-                ]
+            OFFICE: {
+                label: "Office & Stationery",
+                products: {
+                    ID_CARD: {
+                        name: "PVC ID Card",
+                        items: [
+                            { category: 'material', name: "Bahan PVC Blank (3 layer)", cost: 1000 },
+                            { category: 'material', name: "Tinta Pigment/Art Paper", cost: 500 },
+                            { category: 'overhead', name: "Listrik Laminator", cost: 100 }
+                        ]
+                    },
+                    NAME_TAG: {
+                        name: "Name Tag Dada",
+                        items: [
+                            { category: 'material', name: "Akrilik/Kuningan", cost: 2150 },
+                            { category: 'material', name: "Magnet/Peniti", cost: 2500 },
+                            { category: 'material', name: "Resin Lycal", cost: 1500 },
+                            { category: 'material', name: "Sticker/Kertas", cost: 200 }
+                        ]
+                    },
+                    STEMPEL: {
+                        name: "Stempel Flash",
+                        items: [
+                            { category: 'material', name: "Karet Flash", cost: 850 },
+                            { category: 'material', name: "Gagang Stempel", cost: 5000 },
+                            { category: 'material', name: "Tinta Isi", cost: 300 },
+                            { category: 'material', name: "Mika/Kalkir", cost: 100 },
+                            { category: 'overhead', name: "Listrik Mesin Flash", cost: 50 }
+                        ]
+                    },
+                    SIGNAGE: {
+                        name: "Signage Akrilik",
+                        items: [
+                            { category: 'material', name: "Akrilik 10x30", cost: 10000 },
+                            { category: 'material', name: "Sticker Cutting/Print", cost: 15000 },
+                            { category: 'material', name: "Rantai/Double Tape", cost: 5000 }
+                        ]
+                    }
+                }
             },
-            IDCARD: {
-                name: "PVC ID Card",
-                components: [
-                    { name: "Bahan PVC Blank", cost: 1000 },
-                    { name: "Tinta (per kartu)", cost: 500 },
-                    { name: "Listrik/Laminator", cost: 100 },
-                    { name: "Casing/Holder (Opsional)", cost: 0 },
-                    { name: "Yoyo/Tali (Opsional)", cost: 0 }
-                ]
+            APPAREL: {
+                label: "Apparel & Tekstil",
+                products: {
+                    SABLON_DTF: {
+                        name: "Cetak DTF (A3)",
+                        items: [
+                            { category: 'material', name: "PET Film A3", cost: 3333 },
+                            { category: 'material', name: "Tinta White", cost: 4000 },
+                            { category: 'material', name: "Tinta CMYK", cost: 3500 },
+                            { category: 'material', name: "Powder Lem", cost: 750 },
+                            { category: 'overhead', name: "Listrik Oven/Press", cost: 500 }
+                        ]
+                    },
+                    KAOS_SABLON: {
+                        name: "Kaos Sablon (Full)",
+                        items: [
+                            { category: 'material', name: "Kaos Polos Cotton 30s", cost: 33000 },
+                            { category: 'material', name: "Biaya Cetak DTF/Polyflex", cost: 12000 },
+                            { category: 'packaging', name: "Plastik Clip", cost: 500 },
+                            { category: 'labor', name: "Jasa Press", cost: 1000 }
+                        ]
+                    }
+                }
             },
-            MEDALI: {
-                name: "Medali Akrilik/Wisuda",
-                components: [
-                    { name: "Bahan Akrilik", cost: 1500 },
-                    { name: "Sticker + Print", cost: 500 },
-                    { name: "Resin (Jika pakai)", cost: 0 },
-                    { name: "Tali Medali", cost: 1800 },
-                    { name: "Ring/Pengait", cost: 200 }
-                ]
+            PAPER: {
+                label: "Kertas & Percetakan",
+                products: {
+                    UNDANGAN: {
+                        name: "Undangan Blangko",
+                        items: [
+                            { category: 'material', name: "Blangko Undangan", cost: 1500 },
+                            { category: 'material', name: "Plastik OPP", cost: 100 },
+                            { category: 'material', name: "Label Nama", cost: 50 },
+                            { category: 'overhead', name: "Tinta & Listrik", cost: 200 }
+                        ]
+                    },
+                    YASIN: {
+                        name: "Buku Yasin",
+                        items: [
+                            { category: 'material', name: "Isi Yasin (HVS/ArtPaper)", cost: 2500 },
+                            { category: 'material', name: "Cover (RCP/ArtCarton)", cost: 2000 },
+                            { category: 'material', name: "Rumbai & Siku", cost: 500 },
+                            { category: 'labor', name: "Jasa Lem/Jilid", cost: 1000 }
+                        ]
+                    }
+                }
             },
             CUSTOM: {
-                name: "Kustom / Lainnya",
-                components: [
-                    { name: "Bahan Baku Utama", cost: 0 },
-                    { name: "Biaya Cetak", cost: 0 },
-                    { name: "Finishing", cost: 0 }
-                ]
+                label: "Produk Custom",
+                products: {} // Will be filled dynamically
             }
         };
 
+        const CATEGORIES = {
+            material: { label: "Bahan Baku", color: "bg-blue-100 text-blue-800", border: "border-blue-200" },
+            labor: { label: "Tenaga Kerja", color: "bg-orange-100 text-orange-800", border: "border-orange-200" },
+            packaging: { label: "Packaging", color: "bg-green-100 text-green-800", border: "border-green-200" },
+            overhead: { label: "Overhead", color: "bg-gray-100 text-gray-800", border: "border-gray-200" }
+        };
+
         const App = () => {
-            const [activeTab, setActiveTab] = useState("LANYARD");
+            // --- STATE UTAMA ---
+            // Load DB from local storage or use initial
+            const [productDB, setProductDB] = useState(() => {
+                const saved = localStorage.getItem('ois_product_db');
+                return saved ? JSON.parse(saved) : INITIAL_DB;
+            });
+
+            const [selectedCategory, setSelectedCategory] = useState("MERCHANDISE");
+            const [selectedProductKey, setSelectedProductKey] = useState("LANYARD");
             
-            // State HPP
-            const [items, setItems] = useState(PRESETS["LANYARD"].components);
+            // Current Working Items (bisa diedit tanpa mengubah DB permanen kecuali disimpan)
+            // Initialize safe check
+            const initialItems = productDB["MERCHANDISE"]?.products["LANYARD"]?.items || [];
+            const [items, setItems] = useState(initialItems);
             
-            // State Penjualan (Single)
+            // Konfigurasi Batch & Harga
+            const [batchSize, setBatchSize] = useState(1);
             const [sellingPrice, setSellingPrice] = useState(0);
-            const [qty, setQty] = useState(1);
+            const [qtySold, setQtySold] = useState(1);
+            
+            // Biaya & Promo
             const [adminFeePercent, setAdminFeePercent] = useState(6.5);
-            
-            // Ongkir State: Value & Type (Rp or %)
             const [shippingCost, setShippingCost] = useState(0); 
-            const [shippingType, setShippingType] = useState('rp'); // 'rp' or 'percent'
+            const [shippingType, setShippingType] = useState('rp');
+            const [extraCosts, setExtraCosts] = useState([{ name: "Iklan/Promosi", cost: 0, type: 'rp' }]);
             
-            // State Biaya Tambahan (Custom List with Type)
-            const [extraCosts, setExtraCosts] = useState([
-                { name: "Biaya Iklan (Ads)", cost: 0, type: 'rp' } // type: 'rp' or 'percent'
-            ]);
+            // Simulation
+            const [targetMargin, setTargetMargin] = useState(30);
+            const [discountPercent, setDiscountPercent] = useState(0);
+            const [discountNominal, setDiscountNominal] = useState(0);
+            const [costFluctuation, setCostFluctuation] = useState(0);
 
-            // State AI Recommendation
-            const [targetMargin, setTargetMargin] = useState(30); 
-
-            // State Wholesale Tiers
+            // Wholesale Tiers
             const [wholesaleTiers, setWholesaleTiers] = useState([
                 { min: 1, max: 4, price: 0 },
                 { min: 5, max: 9, price: 0 },
                 { min: 10, max: 49, price: 0 },
                 { min: 50, max: 99, price: 0 },
                 { min: 100, max: 999, price: 0 },
-                { min: 1000, max: 99999, price: 0 }, // Representing >1000
+                { min: 1000, max: 99999, price: 0 },
             ]);
 
-            // --- Handlers Tab & HPP ---
-            const handleTabChange = (key) => {
-                setActiveTab(key);
-                setItems(PRESETS[key].components);
-                setSellingPrice(0);
-                setShippingCost(0);
-                // Reset wholesale prices to 0 or keep them? Let's reset for safety
-                const resetTiers = wholesaleTiers.map(t => ({ ...t, price: 0 }));
-                setWholesaleTiers(resetTiers);
+            // History
+            const [history, setHistory] = useState([]);
+            const [showHistory, setShowHistory] = useState(false);
+            
+            // Custom Product Modal
+            const [showAddProduct, setShowAddProduct] = useState(false);
+            const [newProductName, setNewProductName] = useState("");
+
+            // --- EFFECTS ---
+            useEffect(() => {
+                const saved = localStorage.getItem('ois_history');
+                if (saved) setHistory(JSON.parse(saved));
+            }, []);
+
+            useEffect(() => {
+                // Save DB whenever it changes
+                localStorage.setItem('ois_product_db', JSON.stringify(productDB));
+            }, [productDB]);
+
+            // Change Product Handler
+            const handleProductChange = (catKey, prodKey) => {
+                setSelectedCategory(catKey);
+                setSelectedProductKey(prodKey);
+                
+                const prod = productDB[catKey].products[prodKey];
+                if (prod) {
+                    setItems(JSON.parse(JSON.stringify(prod.items)));
+                    setSellingPrice(0);
+                }
             };
 
-            const updateItem = (index, field, value) => {
-                const newItems = [...items];
-                newItems[index][field] = field === 'cost' ? (parseFloat(value) || 0) : value;
-                setItems(newItems);
+            // --- CUSTOM PRODUCT ACTIONS ---
+            const createCustomProduct = () => {
+                if (!newProductName.trim()) return alert("Nama produk tidak boleh kosong");
+                
+                const id = "CUSTOM_" + Date.now();
+                const newDB = { ...productDB };
+                
+                // Ensure CUSTOM category exists (just in case)
+                if (!newDB.CUSTOM) newDB.CUSTOM = { label: "Produk Custom", products: {} };
+                
+                newDB.CUSTOM.products[id] = {
+                    name: newProductName,
+                    items: [
+                        { category: 'material', name: "Bahan Utama", cost: 0 },
+                        { category: 'labor', name: "Jasa", cost: 0 }
+                    ] // Default empty items
+                };
+                
+                setProductDB(newDB);
+                setNewProductName("");
+                setShowAddProduct(false);
+                
+                // Switch to new product
+                handleProductChange("CUSTOM", id);
             };
 
-            const addItem = () => setItems([...items, { name: "Komponen Baru", cost: 0 }]);
-            const removeItem = (index) => setItems(items.filter((_, i) => i !== index));
-
-            // --- Handlers Extra Costs (Biaya Tambahan) ---
-            const updateExtraCost = (index, field, value) => {
-                const newCosts = [...extraCosts];
-                newCosts[index][field] = field === 'cost' ? (parseFloat(value) || 0) : value;
-                setExtraCosts(newCosts);
-            };
-
-            const addExtraCost = () => setExtraCosts([...extraCosts, { name: "Biaya Lainnya", cost: 0, type: 'rp' }]);
-            const removeExtraCost = (index) => setExtraCosts(extraCosts.filter((_, i) => i !== index));
-
-            // --- Handlers Wholesale ---
-            const updateTier = (index, field, value) => {
-                const newTiers = [...wholesaleTiers];
-                newTiers[index][field] = parseFloat(value) || 0;
-                setWholesaleTiers(newTiers);
+            const deleteCustomProduct = (catKey, prodKey) => {
+                if (catKey !== 'CUSTOM') return alert("Hanya produk custom yang bisa dihapus.");
+                if (!confirm("Yakin hapus produk ini?")) return;
+                
+                const newDB = { ...productDB };
+                delete newDB.CUSTOM.products[prodKey];
+                setProductDB(newDB);
+                
+                // Reset selection to default if current deleted
+                if (selectedCategory === 'CUSTOM' && selectedProductKey === prodKey) {
+                    handleProductChange("MERCHANDISE", "LANYARD");
+                }
             };
 
             // --- CALCULATIONS ---
-            const totalHppSatuan = useMemo(() => items.reduce((acc, curr) => acc + curr.cost, 0), [items]);
-            const totalHppTotal = totalHppSatuan * qty;
-            const totalOmset = sellingPrice * qty;
+            const hppPerUnitReal = useMemo(() => {
+                const baseTotal = items.reduce((acc, item) => acc + (parseFloat(item.cost) || 0), 0);
+                const fluctuated = baseTotal * (1 + costFluctuation/100);
+                return fluctuated / batchSize;
+            }, [items, costFluctuation, batchSize]);
 
-            // Calculate Extra Costs (Handle % logic)
-            const totalExtraCostTotal = useMemo(() => extraCosts.reduce((acc, curr) => {
-                let val = curr.cost;
-                if (curr.type === 'percent') {
-                    val = (totalOmset * curr.cost) / 100;
-                }
+            const breakdown = useMemo(() => {
+                const res = { material: 0, labor: 0, packaging: 0, overhead: 0 };
+                items.forEach(item => {
+                    const cat = item.category || 'overhead';
+                    const val = ((parseFloat(item.cost) || 0) * (1 + costFluctuation/100)) / batchSize;
+                    if (res[cat] !== undefined) res[cat] += val;
+                });
+                return res;
+            }, [items, costFluctuation, batchSize]);
+
+            const effectiveSellingPrice = sellingPrice - discountNominal - (sellingPrice * discountPercent / 100);
+            const totalOmset = effectiveSellingPrice * qtySold;
+            
+            const totalExtraCost = useMemo(() => extraCosts.reduce((acc, curr) => {
+                let val = parseFloat(curr.cost) || 0;
+                if (curr.type === 'percent') val = (totalOmset * val) / 100;
                 return acc + val;
             }, 0), [extraCosts, totalOmset]);
 
-            // Calculate Shipping (Handle % logic)
-            const totalShipping = useMemo(() => {
+            const totalShippingVal = useMemo(() => {
                 let val = parseFloat(shippingCost) || 0;
-                if (shippingType === 'percent') {
-                    val = (totalOmset * val) / 100;
-                }
+                if (shippingType === 'percent') val = (totalOmset * val) / 100;
                 return val;
             }, [shippingCost, shippingType, totalOmset]);
-            
-            const adminFeeNominal = (totalOmset * adminFeePercent) / 100;
-            
-            // Total Biaya Keluar = HPP + Admin + Ekstra + Ongkir
-            const totalBiayaKeluar = totalHppTotal + adminFeeNominal + totalExtraCostTotal + totalShipping;
-            
-            const netProfit = totalOmset - totalBiayaKeluar;
-            const netProfitSatuan = qty > 0 ? netProfit / qty : 0;
-            const marginPercent = totalOmset > 0 ? (netProfit / totalOmset) * 100 : 0;
 
-            // --- AI RECOMMENDATION LOGIC ---
+            const totalHPP = hppPerUnitReal * qtySold;
+            const adminFee = (totalOmset * adminFeePercent / 100);
+            const totalExpenses = totalHPP + adminFee + totalExtraCost + totalShippingVal;
+            const netProfit = totalOmset - totalExpenses;
+            const netProfitPerUnit = qtySold > 0 ? netProfit / qtySold : 0;
+            const marginPercent = effectiveSellingPrice > 0 ? (netProfitPerUnit / effectiveSellingPrice) * 100 : 0;
+
             const recommendedPrice = useMemo(() => {
-                // Harga Jual harus menutupi HPP + Ekstra + Ongkir + Admin% + Target Margin%
-                // Warning: Recommendation doesn't perfectly account for Extra Costs if they are % based, it approximates.
-                // Assuming Extra Costs are fixed for simplicity in recommendation formula or taking base HPP.
-                // For a more accurate reverse calc with % costs, we need to sum up all % components.
-                
-                // Sum all percentage based costs
-                const totalPercentCosts = adminFeePercent + 
-                    extraCosts.filter(c => c.type === 'percent').reduce((acc, c) => acc + c.cost, 0) +
-                    (shippingType === 'percent' ? parseFloat(shippingCost) || 0 : 0);
+                const denom = 1 - (adminFeePercent/100) - (targetMargin/100);
+                if (denom <= 0) return 0;
+                return hppPerUnitReal / denom;
+            }, [hppPerUnitReal, adminFeePercent, targetMargin]);
 
-                // Sum all fixed costs (HPP + Fixed Extras + Fixed Shipping)
-                const totalFixedExtras = extraCosts.filter(c => c.type === 'rp').reduce((acc, c) => acc + c.cost, 0);
-                const fixedShipping = shippingType === 'rp' ? (parseFloat(shippingCost) || 0) : 0;
-                
-                const totalFixedCosts = totalHppTotal + totalFixedExtras + fixedShipping;
+            const bepUnit = (effectiveSellingPrice - hppPerUnitReal - (effectiveSellingPrice*adminFeePercent/100)) > 0 
+                ? Math.ceil((totalExtraCost + totalShippingVal) / (effectiveSellingPrice - hppPerUnitReal - (effectiveSellingPrice*adminFeePercent/100))) 
+                : "∞";
 
-                const adminDec = totalPercentCosts / 100;
-                const marginDec = targetMargin / 100;
-                const denominator = 1 - adminDec - marginDec;
-                
-                if (denominator <= 0 || qty <= 0) return 0;
-                const targetOmset = totalFixedCosts / denominator;
-                return targetOmset / qty;
-            }, [totalHppTotal, extraCosts, shippingCost, shippingType, qty, adminFeePercent, targetMargin]);
+            // --- FORMATTERS ---
+            const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
 
-            const applyRecommendation = () => {
-                setSellingPrice(Math.ceil(recommendedPrice / 100) * 100);
+            // --- HANDLERS ---
+            const updateItem = (idx, f, v) => { const n = [...items]; n[idx][f] = v; setItems(n); };
+            const addItem = (cat) => setItems([...items, { category: cat, name: "Item Baru", cost: 0, link: "" }]);
+            const removeItem = (idx) => setItems(items.filter((_, i) => i !== idx));
+            const updateExtra = (idx, f, v) => { const n = [...extraCosts]; n[idx][f] = v; setExtraCosts(n); };
+            const addExtra = () => setExtraCosts([...extraCosts, { name: "Biaya Lain", cost: 0, type: 'rp' }]);
+            const removeExtra = (idx) => setExtraCosts(extraCosts.filter((_, i) => i !== idx));
+            const updateTier = (idx, f, v) => { const n = [...wholesaleTiers]; n[idx][f] = parseFloat(v) || 0; setWholesaleTiers(n); };
+            
+            const saveHistory = () => {
+                const entry = { 
+                    id: Date.now(), 
+                    date: new Date().toLocaleDateString(), 
+                    name: (productDB[selectedCategory]?.products[selectedProductKey]?.name || "Custom"), 
+                    items, sellingPrice, profit: netProfit 
+                };
+                const n = [entry, ...history]; setHistory(n); localStorage.setItem('ois_history', JSON.stringify(n));
+                alert("Tersimpan!");
+            };
+            const deleteHistory = (id) => { const n = history.filter(h => h.id !== id); setHistory(n); localStorage.setItem('ois_history', JSON.stringify(n)); };
+            const loadHistory = (h) => { setItems(h.items); setSellingPrice(h.sellingPrice); setShowHistory(false); };
+            const exportData = () => {
+                const str = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ productName: productDB[selectedCategory]?.products[selectedProductKey]?.name, items, sellingPrice }));
+                const a = document.createElement('a'); a.href = str; a.download = `hpp_${selectedProductKey}.json`; document.body.appendChild(a); a.click(); a.remove();
+            };
+            const handleImport = (e) => {
+                const reader = new FileReader(); reader.onload = ev => { const d = JSON.parse(ev.target.result); setItems(d.items||[]); if(d.sellingPrice) setSellingPrice(d.sellingPrice); };
+                reader.readAsText(e.target.files[0]);
             };
 
-            const fmt = (num) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
-
             return (
-                <div className="min-h-screen pb-12">
-                    {/* Header */}
-                    <div className="bg-gradient-to-r from-indigo-700 to-purple-700 text-white p-6 shadow-lg">
-                        <div className="max-w-6xl mx-auto flex justify-between items-center">
-                            <div>
-                                <h1 className="text-2xl font-bold flex items-center">
-                                    <i className="fas fa-chart-line mr-3"></i> OIS Grafika Calculator Pro
-                                </h1>
-                                <p className="text-indigo-100 text-sm mt-1">Smart HPP & Profit Simulator dengan Rekomendasi Harga</p>
-                            </div>
-                            <div className="hidden md:block text-right">
-                                <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-medium backdrop-blur-sm">
-                                    v2.4 + % Options
-                                </span>
+                <div className="min-h-screen pb-20">
+                    {/* NAV HEADER */}
+                    <nav className="bg-slate-800 text-white p-4 sticky top-0 z-50 shadow-lg">
+                        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+                            <h1 className="text-xl font-bold flex items-center">
+                                <i className="fas fa-calculator mr-2 text-yellow-400"></i> OIS Grafika Ultimate v3.1
+                            </h1>
+                            <div className="flex gap-2 text-sm">
+                                <button onClick={() => setShowHistory(!showHistory)} className="bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded transition"><i className="fas fa-history mr-1"></i> History</button>
+                                <button onClick={exportData} className="bg-green-600 hover:bg-green-500 px-3 py-1 rounded transition"><i className="fas fa-file-export mr-1"></i> Export</button>
+                                <label className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded cursor-pointer transition">
+                                    <i className="fas fa-file-import mr-1"></i> Import
+                                    <input type="file" onChange={handleImport} className="hidden" />
+                                </label>
                             </div>
                         </div>
-                    </div>
+                    </nav>
 
-                    <div className="max-w-6xl mx-auto mt-8 px-4 grid grid-cols-1 lg:grid-cols-12 gap-8">
-                        
-                        {/* LEFT COLUMN (Inputs) */}
-                        <div className="lg:col-span-8 space-y-6">
-                            
-                            {/* 1. Tab Produk */}
-                            <div className="glass-panel p-2 rounded-xl card-shadow flex flex-wrap gap-2">
-                                {Object.keys(PRESETS).map((key) => (
-                                    <button
-                                        key={key}
-                                        onClick={() => handleTabChange(key)}
-                                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex-1 border ${
-                                            activeTab === key 
-                                            ? "bg-indigo-600 text-white border-indigo-600 shadow-md" 
-                                            : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                                        }`}
-                                    >
-                                        {PRESETS[key].name.split(" ")[0]}
-                                    </button>
-                                ))}
-                            </div>
-
-                            {/* 2. Komponen HPP */}
-                            <div className="bg-white rounded-xl card-shadow overflow-hidden animate-fade-in">
-                                <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
-                                    <h2 className="font-bold text-gray-700"><i className="fas fa-boxes mr-2 text-indigo-500"></i>Komponen HPP (Bahan Baku)</h2>
-                                    <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded font-bold">Per Satuan</span>
+                    {/* HISTORY MODAL */}
+                    {showHistory && (
+                        <div className="fixed inset-0 bg-black/50 z-50 flex justify-end">
+                            <div className="bg-white w-full max-w-md h-full p-6 overflow-y-auto slide-down shadow-2xl">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 className="text-xl font-bold text-gray-800">Riwayat Hitungan</h2>
+                                    <button onClick={() => setShowHistory(false)}><i className="fas fa-times text-xl"></i></button>
                                 </div>
-                                <div className="p-4 space-y-3">
-                                    {items.map((item, index) => (
-                                        <div key={index} className="flex gap-2 items-center">
-                                            <button onClick={() => removeItem(index)} className="text-gray-300 hover:text-red-500 px-2 transition">
-                                                <i className="fas fa-trash-alt"></i>
-                                            </button>
-                                            <input 
-                                                type="text" 
-                                                value={item.name}
-                                                onChange={(e) => updateItem(index, 'name', e.target.value)}
-                                                className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                                                placeholder="Nama Bahan"
-                                            />
-                                            <div className="relative w-32 md:w-40">
-                                                <span className="absolute left-3 top-2 text-gray-400 text-sm">Rp</span>
-                                                <input 
-                                                    type="number" 
-                                                    value={item.cost === 0 ? "" : item.cost}
-                                                    onChange={(e) => updateItem(index, 'cost', e.target.value)}
-                                                    className="w-full border border-gray-300 rounded pl-8 pr-3 py-2 text-sm text-right font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                                                    placeholder="0"
-                                                />
+                                {history.length === 0 ? <p className="text-gray-400">Belum ada history.</p> : (
+                                    <div className="space-y-3">
+                                        {history.map(h => (
+                                            <div key={h.id} className="border p-3 rounded hover:bg-gray-50">
+                                                <div className="flex justify-between font-bold"><span>{h.name}</span><span className="text-xs text-gray-400">{h.date}</span></div>
+                                                <div className="text-sm mt-1 text-gray-600">Profit: {fmt(h.profit)}</div>
+                                                <div className="mt-2 flex gap-2">
+                                                    <button onClick={() => loadHistory(h)} className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">Load</button>
+                                                    <button onClick={() => deleteHistory(h.id)} className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">Hapus</button>
+                                                </div>
                                             </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ADD PRODUCT MODAL */}
+                    {showAddProduct && (
+                        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                            <div className="bg-white w-full max-w-sm p-6 rounded-xl shadow-2xl animate-fade-in">
+                                <h3 className="font-bold text-lg mb-4">Buat Produk Custom Baru</h3>
+                                <input 
+                                    type="text" 
+                                    value={newProductName} 
+                                    onChange={e => setNewProductName(e.target.value)} 
+                                    className="w-full border rounded p-2 mb-4 focus:ring-2 focus:ring-indigo-500 outline-none" 
+                                    placeholder="Nama Produk (mis: Hampers Lebaran)" 
+                                    autoFocus
+                                />
+                                <div className="flex justify-end gap-2">
+                                    <button onClick={() => setShowAddProduct(false)} className="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded">Batal</button>
+                                    <button onClick={createCustomProduct} className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Buat</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="max-w-7xl mx-auto mt-6 px-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        
+                        {/* LEFT SIDE: CONFIG & INPUTS */}
+                        <div className="lg:col-span-7 space-y-6">
+                            
+                            {/* 1. PRODUCT SELECTOR (UPDATED) */}
+                            <div className="bg-white rounded-xl card-shadow p-4">
+                                <div className="flex justify-between items-center mb-3">
+                                    <h2 className="font-bold text-gray-700 flex items-center"><i className="fas fa-box-open mr-2 text-indigo-500"></i> Pilih Produk</h2>
+                                    <button onClick={() => setShowAddProduct(true)} className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded font-bold hover:bg-indigo-200 transition">
+                                        <i className="fas fa-plus mr-1"></i> Buat Custom
+                                    </button>
+                                </div>
+                                
+                                {/* Categories Tabs */}
+                                <div className="flex overflow-x-auto gap-2 mb-3 pb-2 scrollbar-hide">
+                                    {Object.keys(productDB).map(catKey => (
+                                        <button 
+                                            key={catKey} 
+                                            onClick={() => setSelectedCategory(catKey)}
+                                            className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${
+                                                selectedCategory === catKey 
+                                                ? 'bg-indigo-600 text-white shadow-md' 
+                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                            }`}
+                                        >
+                                            {productDB[catKey].label}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Products Grid */}
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                    {Object.keys(productDB[selectedCategory]?.products || {}).map(prodKey => (
+                                        <div key={prodKey} className="relative group">
+                                            <button
+                                                onClick={() => handleProductChange(selectedCategory, prodKey)}
+                                                className={`w-full p-2 rounded-lg text-left border transition-all ${
+                                                    selectedProductKey === prodKey 
+                                                    ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500' 
+                                                    : 'border-gray-200 hover:border-indigo-300 hover:bg-gray-50'
+                                                }`}
+                                            >
+                                                <div className="text-xs font-bold text-gray-700 truncate pr-4">
+                                                    {productDB[selectedCategory].products[prodKey].name}
+                                                </div>
+                                            </button>
+                                            
+                                            {/* Delete Button for Custom Products */}
+                                            {selectedCategory === 'CUSTOM' && (
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); deleteCustomProduct(selectedCategory, prodKey); }}
+                                                    className="absolute top-1 right-1 text-gray-300 hover:text-red-500 bg-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition"
+                                                    title="Hapus Produk"
+                                                >
+                                                    <i className="fas fa-times-circle"></i>
+                                                </button>
+                                            )}
                                         </div>
                                     ))}
-                                    <button onClick={addItem} className="mt-2 text-sm text-indigo-600 hover:text-indigo-800 font-medium flex items-center">
-                                        <i className="fas fa-plus-circle mr-1"></i> Tambah Bahan Baku
-                                    </button>
                                 </div>
-                                <div className="bg-indigo-50 p-3 flex justify-between items-center px-6">
-                                    <span className="text-sm text-indigo-800">Total HPP per Pcs</span>
-                                    <span className="font-bold text-lg text-indigo-800">{fmt(totalHppSatuan)}</span>
+                                {Object.keys(productDB[selectedCategory]?.products || {}).length === 0 && (
+                                    <div className="text-center py-4 text-gray-400 text-xs italic bg-gray-50 rounded-lg border border-dashed">
+                                        Belum ada produk di kategori ini. <br/>
+                                        <button onClick={() => setShowAddProduct(true)} className="text-indigo-500 font-bold hover:underline mt-1">Buat Baru</button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* 2. CONFIG: BATCH & INFLATION */}
+                            <div className="bg-white rounded-xl card-shadow p-4 grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-bold text-gray-500 uppercase">Batch Produksi</label>
+                                    <div className="flex items-center mt-1">
+                                        <input type="number" value={batchSize} onChange={e => setBatchSize(parseFloat(e.target.value)||1)} 
+                                            className="w-full border rounded px-2 py-1.5 text-center font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+                                        <span className="ml-2 text-xs text-gray-500">{batchSize > 1 ? "Pcs/Batch" : "Satuan"}</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-gray-500 uppercase">Simulasi Harga Bahan</label>
+                                    <div className="flex items-center mt-1 gap-2">
+                                        <input type="range" min="-20" max="50" value={costFluctuation} onChange={e => setCostFluctuation(parseInt(e.target.value))} 
+                                            className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600" />
+                                        <span className={`text-xs font-bold w-10 text-right ${costFluctuation > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                            {costFluctuation > 0 ? '+' : ''}{costFluctuation}%
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* 3. Simulasi & Biaya Tambahan (CUSTOM) */}
-                            <div className="bg-white rounded-xl card-shadow overflow-hidden animate-fade-in">
-                                <div className="p-4 border-b bg-gray-50">
-                                    <h2 className="font-bold text-gray-700"><i className="fas fa-store mr-2 text-green-500"></i>Simulasi Penjualan (Eceran/Sample)</h2>
+                            {/* 3. COST COMPONENTS EDITOR */}
+                            <div className="bg-white rounded-xl card-shadow overflow-hidden">
+                                <div className="p-3 bg-slate-50 border-b flex justify-between items-center">
+                                    <h2 className="font-bold text-gray-700 text-sm">Rincian Biaya (HPP)</h2>
+                                    <span className="text-xs bg-white border px-2 py-1 rounded shadow-sm font-mono text-indigo-700 font-bold">
+                                        {fmt(hppPerUnitReal)} / pcs
+                                    </span>
                                 </div>
-                                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    
-                                    {/* Kolom Kiri Simulasi: Harga & Qty */}
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-600 mb-1">Jumlah Order (Qty)</label>
-                                            <input 
-                                                type="number" 
-                                                value={qty}
-                                                onChange={(e) => setQty(parseInt(e.target.value) || 1)}
-                                                className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-600 mb-1">Potongan Admin Marketplace (%)</label>
-                                            <div className="relative">
-                                                <input 
-                                                    type="number" 
-                                                    step="0.1"
-                                                    value={adminFeePercent}
-                                                    onChange={(e) => setAdminFeePercent(parseFloat(e.target.value) || 0)}
-                                                    className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
-                                                />
-                                                <span className="absolute right-3 top-2 text-gray-400">%</span>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-600 mb-1">Harga Jual (Satuan)</label>
-                                            <div className="relative">
-                                                <span className="absolute left-3 top-2 text-gray-400">Rp</span>
-                                                <input 
-                                                    type="number" 
-                                                    value={sellingPrice === 0 ? "" : sellingPrice}
-                                                    onChange={(e) => setSellingPrice(parseFloat(e.target.value) || 0)}
-                                                    className="w-full border-2 border-green-500 rounded pl-8 pr-3 py-2 text-lg font-bold text-gray-800 focus:outline-none"
-                                                    placeholder="0"
-                                                />
-                                            </div>
-                                        </div>
-                                        
-                                        {/* New: Ongkir Field with Toggle */}
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-600 mb-1">Ongkir / Ekspedisi (Opsional)</label>
-                                            <div className="flex gap-2">
-                                                <div className="relative flex-1">
-                                                    <span className="absolute left-3 top-2 text-gray-400">{shippingType === 'rp' ? 'Rp' : '%'}</span>
-                                                    <input 
-                                                        type="number" 
-                                                        value={shippingCost === 0 ? "" : shippingCost}
-                                                        onChange={(e) => setShippingCost(parseFloat(e.target.value) || 0)}
-                                                        className="w-full border border-gray-300 rounded pl-8 pr-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
-                                                        placeholder="0"
-                                                    />
+                                <div className="p-4 space-y-4">
+                                    {Object.keys(CATEGORIES).map(catKey => {
+                                        const catItems = items.filter(i => i.category === catKey);
+                                        return (
+                                            <div key={catKey} className={`rounded-lg border ${CATEGORIES[catKey].border} overflow-hidden`}>
+                                                <div className={`px-3 py-1.5 text-[10px] font-bold uppercase flex justify-between items-center ${CATEGORIES[catKey].color}`}>
+                                                    <span>{CATEGORIES[catKey].label}</span>
+                                                    <button onClick={() => addItem(catKey)} className="hover:bg-white/30 px-1.5 rounded transition"><i className="fas fa-plus"></i></button>
                                                 </div>
-                                                <button 
-                                                    onClick={() => setShippingType(shippingType === 'rp' ? 'percent' : 'rp')}
-                                                    className="px-3 py-2 bg-gray-200 rounded text-xs font-bold text-gray-600 hover:bg-gray-300 transition w-12"
-                                                >
-                                                    {shippingType === 'rp' ? 'Rp' : '%'}
+                                                <div className="p-2 space-y-1 bg-white">
+                                                    {catItems.length === 0 && <p className="text-[10px] text-gray-300 italic text-center py-1">Tidak ada item</p>}
+                                                    {items.map((item, idx) => {
+                                                        if (item.category !== catKey) return null;
+                                                        return (
+                                                            <div key={idx} className="flex gap-2 items-center group">
+                                                                <input type="text" value={item.name} onChange={e => updateItem(idx, 'name', e.target.value)} 
+                                                                    className="flex-1 border rounded px-2 py-1 text-xs focus:outline-none focus:border-indigo-400" placeholder="Nama..." />
+                                                                
+                                                                {/* Link Icon */}
+                                                                <div className="relative group/link">
+                                                                    <input type="text" value={item.link || ''} onChange={e => updateItem(idx, 'link', e.target.value)} 
+                                                                        className="absolute right-6 top-0 w-32 border rounded px-2 py-1 text-xs shadow-md opacity-0 pointer-events-none group-hover/link:opacity-100 group-hover/link:pointer-events-auto transition-all z-10 bg-white" placeholder="https://..." />
+                                                                    <a href={item.link || '#'} target="_blank" className={`text-gray-300 hover:text-indigo-500 ${!item.link && 'pointer-events-none opacity-50'}`}>
+                                                                        <i className="fas fa-link text-xs"></i>
+                                                                    </a>
+                                                                </div>
+
+                                                                <div className="relative w-24">
+                                                                    <input type="number" value={item.cost === 0 ? '' : item.cost} onChange={e => updateItem(idx, 'cost', e.target.value)} 
+                                                                        className="w-full border rounded pl-2 pr-2 py-1 text-xs text-right font-mono focus:outline-none focus:border-indigo-400" placeholder="0" />
+                                                                </div>
+                                                                <button onClick={() => removeItem(idx)} className="text-gray-300 hover:text-red-500"><i className="fas fa-trash text-xs"></i></button>
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* 4. SIMULATION SALES */}
+                            <div className="bg-white rounded-xl card-shadow p-5">
+                                <h2 className="font-bold text-gray-700 mb-4 border-b pb-2 text-sm"><i className="fas fa-cash-register mr-2"></i>Penjualan & Biaya Tambahan</h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    
+                                    {/* Left: Pricing */}
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-500">Harga Jual</label>
+                                            <div className="relative mt-1">
+                                                <span className="absolute left-3 top-2 text-gray-400 text-sm font-bold">Rp</span>
+                                                <input type="number" value={sellingPrice===0?'':sellingPrice} onChange={e => setSellingPrice(parseFloat(e.target.value)||0)}
+                                                    className="w-full border-2 border-indigo-200 rounded pl-10 pr-4 py-2 font-bold text-lg text-gray-700 focus:border-indigo-500 outline-none" placeholder="0" />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-500">Qty Terjual</label>
+                                            <input type="number" value={qtySold} onChange={e => setQtySold(parseFloat(e.target.value)||1)}
+                                                className="w-full border rounded px-3 py-2 mt-1 text-sm" />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-500">Ongkir (Subsidi/Tanggung)</label>
+                                            <div className="flex mt-1">
+                                                <div className="relative flex-1">
+                                                    <span className="absolute left-3 top-2 text-gray-400 text-xs">{shippingType === 'rp' ? 'Rp' : '%'}</span>
+                                                    <input type="number" value={shippingCost===0?'':shippingCost} onChange={e => setShippingCost(parseFloat(e.target.value)||0)}
+                                                        className="w-full border rounded-l pl-8 pr-2 py-2 text-sm" placeholder="0" />
+                                                </div>
+                                                <button onClick={() => setShippingType(shippingType==='rp'?'percent':'rp')} 
+                                                    className="bg-gray-200 px-3 py-1 rounded-r text-xs font-bold hover:bg-gray-300 transition w-10">
+                                                    {shippingType==='rp'?'Rp':'%'}
                                                 </button>
                                             </div>
-                                            <p className="text-[10px] text-gray-400 mt-1">Isi jika ongkir ditanggung penjual (mengurangi profit).</p>
                                         </div>
                                     </div>
 
-                                    {/* Kolom Kanan Simulasi: Biaya Custom with Toggle */}
-                                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <label className="text-sm font-bold text-gray-700">Biaya Tambahan (Total)</label>
-                                            <button onClick={addExtraCost} className="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded text-gray-600 transition">
-                                                <i className="fas fa-plus"></i> Tambah
-                                            </button>
-                                        </div>
-                                        <p className="text-xs text-gray-400 mb-3">Contoh: Packing Kayu, Tips Kurir, Iklan.</p>
-                                        
-                                        <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                                            {extraCosts.map((cost, index) => (
-                                                <div key={index} className="flex gap-2 items-center">
-                                                    <input 
-                                                        type="text" 
-                                                        value={cost.name}
-                                                        onChange={(e) => updateExtraCost(index, 'name', e.target.value)}
-                                                        className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs"
-                                                        placeholder="Nama Biaya"
-                                                    />
-                                                    <div className="relative w-20">
-                                                        <input 
-                                                            type="number" 
-                                                            value={cost.cost === 0 ? "" : cost.cost}
-                                                            onChange={(e) => updateExtraCost(index, 'cost', e.target.value)}
-                                                            className="w-full border border-gray-300 rounded px-2 py-1 text-xs text-right"
-                                                            placeholder="0"
-                                                        />
+                                    {/* Right: Extra Costs & Discount */}
+                                    <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200 space-y-3">
+                                        <div>
+                                            <div className="flex justify-between mb-1">
+                                                <label className="text-xs font-bold text-gray-600">Biaya Lain (Iklan/Packing)</label>
+                                                <button onClick={addExtra} className="text-[10px] bg-white border px-1.5 rounded hover:bg-gray-50">+</button>
+                                            </div>
+                                            <div className="space-y-1 max-h-24 overflow-y-auto pr-1 custom-scrollbar">
+                                                {extraCosts.map((ec, idx) => (
+                                                    <div key={idx} className="flex gap-1 items-center">
+                                                        <input type="text" value={ec.name} onChange={e => updateExtra(idx,'name',e.target.value)} className="flex-1 border rounded px-1.5 py-1 text-xs" />
+                                                        <input type="number" value={ec.cost===0?'':ec.cost} onChange={e => updateExtra(idx,'cost',e.target.value)} className="w-16 border rounded px-1 py-1 text-xs text-right" placeholder="0" />
+                                                        <button onClick={() => updateExtra(idx,'type',ec.type==='rp'?'percent':'rp')} className="bg-gray-200 px-1 rounded text-[10px] w-6 hover:bg-gray-300">{ec.type==='rp'?'Rp':'%'}</button>
+                                                        <button onClick={() => removeExtra(idx)} className="text-red-400 text-xs px-1"><i className="fas fa-times"></i></button>
                                                     </div>
-                                                    <button 
-                                                        onClick={() => updateExtraCost(index, 'type', cost.type === 'rp' ? 'percent' : 'rp')}
-                                                        className="w-8 px-1 py-1 bg-gray-200 rounded text-[10px] font-bold text-gray-600 hover:bg-gray-300 transition"
-                                                    >
-                                                        {cost.type === 'rp' ? 'Rp' : '%'}
-                                                    </button>
-                                                    <button onClick={() => removeExtraCost(index)} className="text-gray-400 hover:text-red-500">
-                                                        <i className="fas fa-times"></i>
-                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-600">Diskon / Promo</label>
+                                            <div className="flex gap-2 mt-1">
+                                                <div className="relative flex-1">
+                                                    <input type="number" value={discountPercent===0?'':discountPercent} onChange={e => setDiscountPercent(parseFloat(e.target.value)||0)}
+                                                        className="w-full border rounded px-2 py-1 text-xs text-right pr-5" placeholder="0" />
+                                                    <span className="absolute right-2 top-1 text-xs text-gray-400">%</span>
+                                                </div>
+                                                <div className="relative flex-1">
+                                                    <span className="absolute left-2 top-1 text-xs text-gray-400">Rp</span>
+                                                    <input type="number" value={discountNominal===0?'':discountNominal} onChange={e => setDiscountNominal(parseFloat(e.target.value)||0)}
+                                                        className="w-full border rounded px-2 py-1 text-xs pl-6 text-right" placeholder="0" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-between items-center pt-2 border-t border-yellow-200">
+                                            <label className="text-xs text-gray-600">Admin MP (%)</label>
+                                            <input type="number" value={adminFeePercent} onChange={e => setAdminFeePercent(parseFloat(e.target.value)||0)} 
+                                                className="w-16 border rounded text-right px-1 text-xs" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        {/* RIGHT SIDE: ANALYSIS & AI */}
+                        <div className="lg:col-span-5 space-y-6">
+                            
+                            {/* AI RECOMMENDATION */}
+                            <div className="bg-gradient-to-br from-indigo-900 to-purple-800 text-white rounded-xl card-shadow p-5 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-4 opacity-10"><i className="fas fa-robot text-6xl"></i></div>
+                                <div className="flex justify-between items-start mb-4">
+                                    <h3 className="font-bold text-sm flex items-center"><i className="fas fa-magic mr-2 text-yellow-300"></i> AI Price Suggester</h3>
+                                    <div className="flex items-center gap-2 bg-white/10 px-2 py-1 rounded">
+                                        <span className="text-[10px] text-indigo-200">Target Margin:</span>
+                                        <input type="number" value={targetMargin} onChange={e => setTargetMargin(parseInt(e.target.value))} className="w-8 bg-transparent text-right font-bold text-xs focus:outline-none" />
+                                        <span className="text-[10px]">%</span>
+                                    </div>
+                                </div>
+                                <div className="bg-white/10 rounded-lg p-3 backdrop-blur-sm border border-white/10 text-center">
+                                    <div className="text-[10px] text-indigo-200 uppercase tracking-widest mb-1">Rekomendasi Harga Jual</div>
+                                    <div className="text-3xl font-bold text-yellow-300 font-mono tracking-tight">{fmt(Math.ceil(recommendedPrice/100)*100)}</div>
+                                    <button onClick={() => setSellingPrice(Math.ceil(recommendedPrice/100)*100)} className="mt-2 w-full bg-white text-indigo-900 py-1.5 rounded text-xs font-bold hover:bg-indigo-50 transition shadow-lg">
+                                        GUNAKAN HARGA INI
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* PROFIT ANALYSIS CARD */}
+                            <div className="bg-white rounded-xl card-shadow sticky top-24 border border-gray-100 overflow-hidden">
+                                <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                                    <h2 className="font-bold text-gray-800 text-sm">Analisa Profitabilitas</h2>
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${marginPercent < 0 ? 'bg-red-100 text-red-700' : marginPercent < 20 ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
+                                        {marginPercent < 0 ? 'RUGI' : marginPercent < 20 ? 'TIPIS' : 'SEHAT'}
+                                    </span>
+                                </div>
+                                <div className="p-5 space-y-5">
+                                    
+                                    {/* Visual Breakdown Bar */}
+                                    <div>
+                                        <div className="flex justify-between text-[10px] text-gray-500 mb-1">
+                                            <span>Struktur Biaya</span>
+                                            <span>Total: {fmt(hppPerUnitReal)}</span>
+                                        </div>
+                                        <div className="flex w-full h-3 rounded-full overflow-hidden bg-gray-100">
+                                            <div style={{width: `${(breakdown.material/hppPerUnitReal)*100}%`}} className="bg-blue-400"></div>
+                                            <div style={{width: `${(breakdown.labor/hppPerUnitReal)*100}%`}} className="bg-orange-400"></div>
+                                            <div style={{width: `${(breakdown.packaging/hppPerUnitReal)*100}%`}} className="bg-green-400"></div>
+                                            <div style={{width: `${(breakdown.overhead/hppPerUnitReal)*100}%`}} className="bg-gray-400"></div>
+                                        </div>
+                                        <div className="flex gap-3 mt-1 justify-center">
+                                            {Object.keys(breakdown).map(k => breakdown[k] > 0 && (
+                                                <div key={k} className="flex items-center text-[10px] text-gray-500">
+                                                    <div className={`w-1.5 h-1.5 rounded-full mr-1 ${k==='material'?'bg-blue-400':k==='labor'?'bg-orange-400':k==='packaging'?'bg-green-400':'bg-gray-400'}`}></div>
+                                                    {k.charAt(0).toUpperCase() + k.slice(1)}
                                                 </div>
                                             ))}
                                         </div>
-                                        <div className="mt-3 flex justify-between items-center text-sm border-t pt-2 border-gray-200">
-                                            <span className="text-gray-600">Total Ekstra:</span>
-                                            <span className="font-bold text-gray-800">{fmt(totalExtraCostTotal)}</span>
+                                    </div>
+
+                                    {/* Main Result */}
+                                    <div className={`text-center p-4 rounded-xl border-2 transition-colors ${netProfitPerUnit >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                                        <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Net Profit / Unit</div>
+                                        <div className={`text-3xl font-extrabold ${netProfitPerUnit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {fmt(netProfitPerUnit)}
+                                        </div>
+                                        <div className="text-xs text-gray-500 mt-1 font-medium">
+                                            Margin: {marginPercent.toFixed(1)}% | Total: {fmt(netProfit)}
                                         </div>
                                     </div>
 
+                                    {/* Metrics Grid */}
+                                    <div className="grid grid-cols-2 gap-3 text-center">
+                                        <div className="bg-gray-50 p-2 rounded border border-gray-100">
+                                            <div className="text-[10px] text-gray-400 uppercase">Break Even Point</div>
+                                            <div className="font-bold text-gray-700">{typeof bepUnit === 'number' ? bepUnit + ' Unit' : '-'}</div>
+                                        </div>
+                                        <div className="bg-gray-50 p-2 rounded border border-gray-100">
+                                            <div className="text-[10px] text-gray-400 uppercase">Omset Bersih</div>
+                                            <div className="font-bold text-gray-700">{fmt(effectiveSellingPrice)}</div>
+                                        </div>
+                                    </div>
+
+                                    {/* Action */}
+                                    <button onClick={saveHistory} className="w-full py-2 border border-gray-300 rounded-lg text-gray-600 text-sm font-semibold hover:bg-gray-50 hover:text-indigo-600 transition flex justify-center items-center">
+                                        <i className="fas fa-save mr-2"></i> Simpan ke History
+                                    </button>
                                 </div>
                             </div>
 
-                            {/* 4. TABEL HARGA GROSIR (NEW) */}
-                            <div className="bg-white rounded-xl card-shadow overflow-hidden animate-fade-in">
-                                <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
-                                    <h2 className="font-bold text-gray-700"><i className="fas fa-users mr-2 text-blue-500"></i>Simulasi Harga Grosir</h2>
-                                    <span className="text-xs text-gray-500">*Admin {adminFeePercent}% | HPP {fmt(totalHppSatuan)}</span>
+                            {/* 5. WHOLESALE TABLE */}
+                            <div className="bg-white rounded-xl card-shadow overflow-hidden">
+                                <div className="p-4 border-b flex justify-between items-center">
+                                    <h2 className="font-bold text-gray-700 text-sm"><i className="fas fa-users mr-2 text-blue-500"></i>Harga Grosir</h2>
                                 </div>
                                 <div className="overflow-x-auto">
-                                    <table className="w-full text-sm text-left">
+                                    <table className="w-full text-xs text-left">
                                         <thead className="bg-blue-50 text-blue-800">
-                                            <tr>
-                                                <th className="p-3 text-center w-32">Qty Min</th>
-                                                <th className="p-3 text-center w-32">Qty Max</th>
-                                                <th className="p-3">Harga Jual (Pcs)</th>
-                                                <th className="p-3">Admin MP</th>
-                                                <th className="p-3">Profit Bersih (Pcs)</th>
-                                                <th className="p-3 text-center">Status</th>
-                                            </tr>
+                                            <tr><th className="p-2 w-16">Min</th><th className="p-2 w-16">Max</th><th className="p-2">Harga</th><th className="p-2">Profit/Pcs</th><th className="p-2 text-center">Status</th></tr>
                                         </thead>
                                         <tbody>
                                             {wholesaleTiers.map((tier, idx) => {
                                                 const adminFee = (tier.price * adminFeePercent) / 100;
-                                                const grossProfit = tier.price - totalHppSatuan - adminFee;
+                                                const grossProfit = tier.price - hppPerUnitReal - adminFee;
                                                 const margin = tier.price > 0 ? (grossProfit / tier.price) * 100 : 0;
-                                                
-                                                let statusColor = "bg-green-100 text-green-700";
-                                                let statusIcon = "fa-check";
-                                                if (grossProfit < 0) {
-                                                    statusColor = "bg-red-100 text-red-700";
-                                                    statusIcon = "fa-times";
-                                                } else if (margin < 15) {
-                                                    statusColor = "bg-yellow-100 text-yellow-700";
-                                                    statusIcon = "fa-exclamation";
-                                                }
-
+                                                let statusColor = grossProfit < 0 ? "bg-red-100 text-red-700" : margin < 15 ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700";
                                                 return (
                                                     <tr key={idx} className="border-b hover:bg-gray-50">
-                                                        <td className="p-2">
-                                                            <input type="number" value={tier.min} onChange={(e) => updateTier(idx, 'min', e.target.value)} className="w-full border rounded px-2 py-1 text-center" />
-                                                        </td>
-                                                        <td className="p-2">
-                                                            <input type="number" value={tier.max} onChange={(e) => updateTier(idx, 'max', e.target.value)} className="w-full border rounded px-2 py-1 text-center" />
-                                                        </td>
-                                                        <td className="p-2">
-                                                            <div className="relative">
-                                                                <span className="absolute left-2 top-1.5 text-gray-400 text-xs">Rp</span>
-                                                                <input 
-                                                                    type="number" 
-                                                                    value={tier.price === 0 ? "" : tier.price} 
-                                                                    onChange={(e) => updateTier(idx, 'price', e.target.value)} 
-                                                                    className="w-full border border-blue-200 rounded pl-6 pr-2 py-1 font-bold text-gray-700 focus:outline-none focus:border-blue-500"
-                                                                    placeholder="0"
-                                                                />
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-3 text-gray-500 text-xs">
-                                                            -{fmt(adminFee)}
-                                                        </td>
-                                                        <td className="p-3 font-bold">
-                                                            <span className={grossProfit < 0 ? "text-red-500" : "text-gray-700"}>{fmt(grossProfit)}</span>
-                                                            <div className="text-[10px] text-gray-400">{margin.toFixed(1)}%</div>
-                                                        </td>
-                                                        <td className="p-3 text-center">
-                                                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${statusColor}`}>
-                                                                <i className={`fas ${statusIcon} mr-1`}></i> 
-                                                                {grossProfit < 0 ? "Rugi" : margin < 15 ? "Tipis" : "Aman"}
-                                                            </span>
-                                                        </td>
+                                                        <td className="p-2"><input type="number" value={tier.min} onChange={e => updateTier(idx,'min',e.target.value)} className="w-full border rounded text-center"/></td>
+                                                        <td className="p-2"><input type="number" value={tier.max} onChange={e => updateTier(idx,'max',e.target.value)} className="w-full border rounded text-center"/></td>
+                                                        <td className="p-2"><input type="number" value={tier.price===0?'':tier.price} onChange={e => updateTier(idx,'price',e.target.value)} className="w-full border border-blue-200 rounded px-1 font-bold text-gray-700" placeholder="0"/></td>
+                                                        <td className="p-2 font-bold"><span className={grossProfit<0?"text-red-500":"text-gray-700"}>{fmt(grossProfit)}</span></td>
+                                                        <td className="p-2 text-center"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${statusColor}`}>{grossProfit<0?"Rugi":margin<15?"Tipis":"Aman"}</span></td>
                                                     </tr>
-                                                );
+                                                )
                                             })}
                                         </tbody>
                                     </table>
-                                    <div className="p-3 text-xs text-gray-400 bg-gray-50 italic">
-                                        *Profit di tabel grosir belum memperhitungkan Ongkir/Biaya Tambahan Global. Kalkulasi per pcs: Harga - HPP - AdminMP.
-                                    </div>
-                                </div>
-                            </div>
-
-                        </div>
-
-                        {/* RIGHT COLUMN (Analysis & AI) */}
-                        <div className="lg:col-span-4 space-y-6">
-                            
-                            {/* 5. AI Recommendation Panel */}
-                            <div className="bg-gradient-to-br from-purple-600 to-indigo-800 rounded-xl card-shadow p-6 text-white relative overflow-hidden">
-                                <div className="absolute top-0 right-0 p-4 opacity-10">
-                                    <i className="fas fa-robot text-6xl"></i>
-                                </div>
-                                <h3 className="font-bold text-lg mb-1 flex items-center">
-                                    <i className="fas fa-magic mr-2 text-yellow-300"></i> Rekomendasi Harga
-                                </h3>
-                                <p className="text-purple-200 text-xs mb-4">Tentukan target margin, AI hitung harga ideal.</p>
-
-                                <div className="flex items-center gap-3 mb-4">
-                                    <span className="text-sm">Target Margin:</span>
-                                    <div className="relative w-20">
-                                        <input 
-                                            type="number" 
-                                            value={targetMargin}
-                                            onChange={(e) => setTargetMargin(parseFloat(e.target.value) || 0)}
-                                            className="w-full bg-white/20 border border-white/30 rounded px-2 py-1 text-center font-bold focus:outline-none"
-                                        />
-                                        <span className="absolute right-1 top-1 text-xs">%</span>
-                                    </div>
-                                </div>
-
-                                <div className="bg-black/20 rounded-lg p-3 text-center mb-4 backdrop-blur-sm border border-white/10">
-                                    <div className="text-xs text-purple-200 uppercase">Saran Harga Jual</div>
-                                    <div className="text-2xl font-bold text-yellow-300 shadow-sm">
-                                        {recommendedPrice > 0 && isFinite(recommendedPrice) ? fmt(Math.ceil(recommendedPrice/100)*100) : "Rp 0"}
-                                    </div>
-                                    <div className="text-[10px] text-purple-300 mt-1">
-                                        (Cover HPP, Admin {adminFeePercent}%, Ongkir, Extra)
-                                    </div>
-                                </div>
-
-                                <button 
-                                    onClick={applyRecommendation}
-                                    className="w-full bg-white text-indigo-700 py-2 rounded-lg font-bold text-sm hover:bg-indigo-50 transition shadow-lg"
-                                >
-                                    Gunakan Harga Ini
-                                </button>
-                            </div>
-
-                            {/* 6. Analisa Profit (Sticky) */}
-                            <div className="bg-white rounded-xl card-shadow sticky top-6 overflow-hidden">
-                                <div className="bg-gray-800 text-white p-4 text-center">
-                                    <h2 className="font-bold text-lg">Analisa Single Order</h2>
-                                </div>
-                                <div className="p-5 space-y-4">
-                                    
-                                    {/* Breakdown Mini */}
-                                    <div className="space-y-2 text-sm">
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-500">Omset Penjualan</span>
-                                            <span className="font-bold text-gray-800">{fmt(totalOmset)}</span>
-                                        </div>
-                                        <div className="flex justify-between text-red-500">
-                                            <span>(-) Total HPP</span>
-                                            <span>-{fmt(totalHppTotal)}</span>
-                                        </div>
-                                        <div className="flex justify-between text-red-500">
-                                            <span>(-) Admin Marketplace</span>
-                                            <span>-{fmt(adminFeeNominal)}</span>
-                                        </div>
-                                        {totalExtraCostTotal > 0 && (
-                                            <div className="flex justify-between text-red-500">
-                                                <span>(-) Biaya Tambahan</span>
-                                                <span>-{fmt(totalExtraCostTotal)}</span>
-                                            </div>
-                                        )}
-                                        {totalShipping > 0 && (
-                                            <div className="flex justify-between text-red-500">
-                                                <span>(-) Ongkir Ditanggung</span>
-                                                <span>-{fmt(totalShipping)}</span>
-                                            </div>
-                                        )}
-                                        <hr className="border-dashed my-2"/>
-                                    </div>
-
-                                    {/* Big Result */}
-                                    <div className={`text-center p-4 rounded-xl border-2 transition-all ${
-                                        netProfit > 0 ? 'bg-green-50 border-green-200' : 
-                                        netProfit < 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'
-                                    }`}>
-                                        <div className="text-gray-500 text-xs font-bold uppercase mb-1">Profit Bersih</div>
-                                        <div className={`text-2xl font-extrabold ${
-                                            netProfit > 0 ? 'text-green-600' : netProfit < 0 ? 'text-red-600' : 'text-gray-600'
-                                        }`}>
-                                            {fmt(netProfit)}
-                                        </div>
-                                        {qty > 1 && (
-                                            <div className="text-xs text-gray-500 mt-1">
-                                                {fmt(netProfitSatuan)} / pcs
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Margin Indicator */}
-                                    <div className="flex items-center justify-between bg-gray-100 p-3 rounded-lg">
-                                        <div className="text-xs font-bold text-gray-600">MARGIN PROFIT</div>
-                                        <div className={`text-lg font-bold ${
-                                            marginPercent < 15 ? 'text-red-500' : 
-                                            marginPercent < 30 ? 'text-yellow-600' : 'text-green-600'
-                                        }`}>
-                                            {marginPercent.toFixed(1)}%
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
 
